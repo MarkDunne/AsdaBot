@@ -20,9 +20,24 @@ auth_app = typer.Typer(help="Manage authentication.")
 app.add_typer(auth_app, name="auth")
 
 
+@auth_app.command("login")
+def auth_login():
+    """Open Chrome to log in. Saves session state and auth tokens."""
+    from asdabot.checkout import browser_login
+
+    success = browser_login()
+    if success:
+        console.print("[green]Login successful! Tokens and browser state saved.[/green]")
+        console.print("You can now use 'asda checkout' for fully headless orders.")
+    else:
+        console.print(
+            "[red]Could not extract tokens. Make sure you logged in before closing Chrome.[/red]"
+        )
+
+
 @auth_app.command("import")
 def auth_import():
-    """Import auth tokens from browser cookies."""
+    """Import auth tokens manually (fallback if login doesn't work)."""
     auth.import_tokens_interactive()
 
 
@@ -428,8 +443,9 @@ def slots_book(
 def checkout(
     confirm: bool = typer.Option(False, "--confirm", "-y", help="Skip confirmation prompt"),
 ):
-    """Place the order using the current basket and booked slot."""
-    # Show basket summary first
+    """Place the order using a headless browser for payment."""
+    from asdabot.checkout import place_order_via_browser
+
     basket = api.get_basket()
     items = basket.get("productItems", [])
     order_total = basket.get("orderTotal", 0)
@@ -464,33 +480,15 @@ def checkout(
             console.print("Order cancelled.")
             raise typer.Exit(0)
 
-    # Set billing address
-    addr = _require_address()
-    console.print("Setting billing address...")
-    api.set_billing_address(
-        {
-            "address1": addr["address1"],
-            "address2": addr.get("address2", ""),
-            "city": addr["city"],
-            "countryCode": "GB",
-            "postalCode": addr["postalCode"],
-            "firstName": addr["firstName"],
-            "lastName": addr["lastName"],
-        }
-    )
-
-    # Add payment instrument (uses saved card)
-    console.print("Attaching payment method...")
-    billing_address_id = addr.get("asdaCrmAddressId", "")
-    api.add_payment_instrument("", billing_address_id)
-
-    # Place order
     console.print("Placing order...")
-    result = api.place_order()
+    result = place_order_via_browser()
 
-    order_no = result.get("orderNo", "unknown")
-    console.print(f"\n[bold green]Order placed! Order #{order_no}[/bold green]")
-    console.print(f"  Total: £{result.get('orderTotal', 0):.2f}")
+    if result["success"]:
+        order_no = result.get("order_no", "unknown")
+        console.print(f"\n[bold green]Order placed! Order #{order_no}[/bold green]")
+    else:
+        console.print(f"\n[red]Checkout failed: {result.get('error', 'unknown')}[/red]")
+        raise typer.Exit(1)
 
 
 # -- Orders --

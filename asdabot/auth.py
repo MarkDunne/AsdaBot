@@ -73,6 +73,7 @@ def refresh_tokens() -> dict:
         "refresh_token_expires_at": time.time() + data["refresh_token_expires_in"],
     }
     save_tokens(updated)
+
     return updated
 
 

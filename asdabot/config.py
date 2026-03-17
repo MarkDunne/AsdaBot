@@ -1,11 +1,19 @@
 """Configuration and token management for ASDA API access."""
 
 import json
+import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 CONFIG_DIR = Path.home() / ".config" / "asdabot"
+ENV_FILE = CONFIG_DIR / ".env"
+
+# Load secrets from .env
+load_dotenv(ENV_FILE)
 TOKEN_FILE = CONFIG_DIR / "tokens.json"
 ADDRESS_FILE = CONFIG_DIR / "address.json"
+BROWSER_STATE_DIR = CONFIG_DIR / "browser-state"
 
 # Algolia (public, no auth needed)
 ALGOLIA_APP_ID = "8I6WSKCCNV"
@@ -49,3 +57,7 @@ def load_address() -> dict | None:
     if not ADDRESS_FILE.exists():
         return None
     return json.loads(ADDRESS_FILE.read_text())
+
+
+def get_card_cvv() -> str:
+    return os.environ.get("ASDA_CARD_CVV", "")
