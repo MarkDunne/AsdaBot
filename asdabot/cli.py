@@ -1,5 +1,6 @@
 """CLI entry point for asdabot."""
 
+import json as jsonlib
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -142,10 +143,20 @@ def address_show():
 # -- Search --
 
 
+def _get_description(product: dict) -> str:
+    """Extract a short description from SFCC product detail."""
+
+    bb = product.get("c_BRANDBANK_JSON", {})
+    if isinstance(bb, str):
+        bb = jsonlib.loads(bb)
+    return bb.get("regulatedProductName", "") or bb.get("productMarketing", "") or ""
+
+
 @app.command("search")
 def search_cmd(
     query: str = typer.Argument(..., help="Search query"),
     limit: int = typer.Option(20, "--limit", "-n"),
+    detail: bool = typer.Option(False, "--detail", "-d", help="Include descriptions"),
 ):
     """Search for products."""
     results = search.search_products(query, hits_per_page=limit)
@@ -153,6 +164,12 @@ def search_cmd(
     if not hits:
         console.print(f"[yellow]No results for '{query}'[/yellow]")
         return
+
+    # Optionally enrich with product descriptions
+    details = {}
+    if detail:
+        cins = [str(h.get("CIN", "")) for h in hits]
+        details = api.get_product_details(cins)
 
     table = Table(title=f"Search: {query} ({results.get('nbHits', 0)} total)")
     table.add_column("CIN", style="dim")
@@ -162,22 +179,68 @@ def search_cmd(
     table.add_column("Per Unit", justify="right", style="dim")
     table.add_column("Pack", style="dim")
     table.add_column("Stock", justify="center")
+    if detail:
+        table.add_column("Description", style="dim")
 
     for hit in hits:
         prices = hit.get("PRICES", {}).get("EN", {})
         stock = hit.get("STOCK", {})
         stock_val = stock.get("4619", 0) if isinstance(stock, dict) else 0
-        table.add_row(
-            str(hit.get("CIN", "")),
+        cin = str(hit.get("CIN", ""))
+
+        row = [
+            cin,
             hit.get("NAME", ""),
             hit.get("BRAND", ""),
             _format_price(prices.get("PRICE", ""), prices.get("OFFER", "")),
             prices.get("PRICEPERUOMFORMATTED", ""),
             hit.get("PACK_SIZE", ""),
             "[green]Y[/green]" if stock_val > 0 else "[red]N[/red]",
-        )
+        ]
+        if detail:
+            row.append(_get_description(details.get(cin, {})))
+        table.add_row(*row)
 
     console.print(table)
+
+
+@app.command("product")
+def product_cmd(
+    product_id: str = typer.Argument(..., help="Product CIN"),
+):
+    """Show full product details."""
+
+    details = api.get_product_details([product_id])
+    product = details.get(product_id)
+    if not product:
+        console.print(f"[red]Product {product_id} not found.[/red]")
+        raise typer.Exit(1)
+
+    bb = product.get("c_BRANDBANK_JSON", {})
+    if isinstance(bb, str):
+        bb = jsonlib.loads(bb)
+
+    console.print(f"\n[bold]{product.get('name', '?')}[/bold]")
+    console.print(f"  CIN: {product_id}")
+    console.print(f"  Brand: {product.get('brand', '?')}")
+    console.print(f"  Price: £{product.get('price', 0):.2f}")
+
+    if desc := bb.get("regulatedProductName", ""):
+        console.print(f"  Description: {desc}")
+    if marketing := bb.get("productMarketing", ""):
+        console.print(f"  Info: {marketing}")
+    if features := bb.get("features", []):
+        console.print(f"  Features: {', '.join(features)}")
+    if storage := bb.get("storage", ""):
+        console.print(f"  Storage: {storage}")
+    if nutrition := bb.get("nutrition", []):
+        nutr_str = ", ".join(
+            f"{n['nutrient']}: {n['values'][0]}"
+            for n in nutrition[:6]
+            if n.get("values")
+        )
+        console.print(f"  Nutrition (per 100ml): {nutr_str}")
+    console.print()
 
 
 # -- Basket --
@@ -374,7 +437,9 @@ def checkout(
     result = place_order_via_browser()
 
     if result["success"]:
-        console.print(f"\n[bold green]Order placed! #{result.get('order_no', '?')}[/bold green]")
+        orders = api.get_orders().get("data", [])
+        order_no = orders[0].get("orderNo", "?") if orders else "?"
+        console.print(f"\n[bold green]Order placed! #{order_no}[/bold green]")
     else:
         console.print(f"\n[red]Checkout failed: {result.get('error', '?')}[/red]")
         raise typer.Exit(1)
@@ -386,7 +451,6 @@ def checkout(
 @app.command("orders")
 def orders_cmd():
     """Show recent orders."""
-    import json as jsonlib
 
     order_list = api.get_orders().get("data", [])
     if not order_list:

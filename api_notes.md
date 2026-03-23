@@ -150,6 +150,17 @@
 - **Chrome with `--user-data-dir`**: Session cookies don't persist between launches
 - **Camoufox (Firefox-based)**: Works! Passes Cloudflare, sessions persist, SPA renders
 
+## Orders
+
+- SFCC orders endpoint returns `status` (`created`, `failed`) but does NOT track cancellations
+- Cancellations happen in ASDA's OMS, not reflected back in SFCC
+- Useful custom fields on orders:
+  - `c_ingenicoOgoneStatusCategory` — payment status (e.g. `AUTHORIZED`, `PENDING_CAPTURE`)
+  - `c_asdaBookedSlotDetail` — JSON with delivery slot times
+  - `c_asdaAmendCutoffDateTime` — deadline to amend the order
+  - `c_ingenicoOgoneIsCancellable` — whether order can be cancelled
+  - `c_asda_oms_exported` — whether order has been sent to ASDA's OMS
+
 ## Key Identifiers
 - Azure AD B2C Client ID: `8121a3d6-3e1c-4992-9b43-c0bf555159f5`
 - SFCC Org: `f_ecom_bjgs_prd`

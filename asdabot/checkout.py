@@ -5,7 +5,6 @@ CVV is loaded from ~/.config/asdabot/.env (ASDA_CARD_CVV).
 """
 
 import contextlib
-import re
 
 from camoufox.sync_api import Camoufox
 
@@ -119,12 +118,7 @@ def place_order_via_browser(headless: bool = True) -> dict:
             page.wait_for_url(f"**{ORDER_CONFIRMATION_PATH}**", timeout=45000)
             page.wait_for_load_state("networkidle", timeout=10000)
 
-            order_no = ""
-            match = re.search(r"(7\d{13,15})", page.text_content("body") or "")
-            if match:
-                order_no = match.group(1)
-
-            return {"success": True, "order_no": order_no}
+            return {"success": True}
 
     except Exception as e:
         return {"success": False, "error": str(e)}

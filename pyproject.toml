@@ -8,7 +8,6 @@ dependencies = [
     "algoliasearch>=4.37.1",
     "camoufox>=0.4.11",
     "httpx>=0.28.1",
-    "playwright>=1.58.0",
     "python-dotenv>=1.0.1",
     "rich>=14.3.3",
     "typer>=0.24.1",
@@ -27,4 +26,33 @@ target-version = "py312"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific
+    "N",    # pep8-naming
+    "S",    # flake8-bandit (security)
+    "T20",  # flake8-print
+    "TCH",  # flake8-type-checking
+    "PIE",  # flake8-pie
+    "PT",   # flake8-pytest-style
+    "RSE",  # flake8-raise
+    "RET",  # flake8-return
+    "FLY",  # flynt
+    "PERF", # perflint
+    "FURB", # refurb
+    "LOG",  # flake8-logging
+    "PLC",  # pylint convention (catches non-top-level imports)
+]
+ignore = [
+    "S101",  # assert is fine
+    "T201",  # print is fine for CLI output
+]
+
+[tool.ruff.lint.per-file-ignores]
+"asdabot/cli.py" = ["T201", "PLC0415"]  # lazy imports for checkout (avoids 1s startup)
+"asdabot/checkout.py" = ["T201", "S603", "S607"]  # subprocess + print in login flow

@@ -141,6 +141,20 @@ def book_slot(slot_id: str, shipping_address: dict) -> dict:
     )
 
 
+# -- Products --
+
+
+def get_product_details(product_ids: list[str]) -> dict[str, dict]:
+    """Fetch full product details including descriptions. Returns {cin: product}."""
+    if not product_ids:
+        return {}
+    ids_param = ",".join(product_ids)
+    path = f"product/shopper-products/v1/organizations/{SFCC_ORG}/products"
+    resp = httpx.get(_url(path) + f"&ids={ids_param}", headers=_headers(), timeout=TIMEOUT)
+    resp.raise_for_status()
+    return {p["id"]: p for p in resp.json().get("data", [])}
+
+
 # -- Orders --
 
 
