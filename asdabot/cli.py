@@ -235,9 +235,7 @@ def product_cmd(
         console.print(f"  Storage: {storage}")
     if nutrition := bb.get("nutrition", []):
         nutr_str = ", ".join(
-            f"{n['nutrient']}: {n['values'][0]}"
-            for n in nutrition[:6]
-            if n.get("values")
+            f"{n['nutrient']}: {n['values'][0]}" for n in nutrition[:6] if n.get("values")
         )
         console.print(f"  Nutrition (per 100ml): {nutr_str}")
     console.print()
