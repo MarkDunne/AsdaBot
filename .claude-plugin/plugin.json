@@ -1,5 +1,6 @@
 {
   "name": "asdabot",
+  "version": "0.1.1",
   "description": "Autonomous grocery shopping on ASDA. Search products, manage baskets, book delivery slots, and place orders from the terminal.",
   "author": {
     "name": "Mark Dunne"
