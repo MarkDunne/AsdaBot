@@ -2,7 +2,7 @@
 
 Autonomous grocery shopping on ASDA from the terminal.
 
-[![asciicast](https://asciinema.org/a/865562.svg)](https://asciinema.org/a/865562)
+<img src="docs/demo.svg" alt="AsdaBot demo" />
 
 ## Prerequisites
 
