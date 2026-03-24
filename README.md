@@ -11,16 +11,20 @@ You need an existing ASDA Groceries account with:
 ## Install
 
 ```bash
-git clone https://github.com/MarkDunne/AsdaBot
-cd AsdaBot
-uv sync
+uv tool install asdabot
+```
+
+Or run directly without installing:
+
+```bash
+uvx asdabot search "milk"
 ```
 
 ## Setup
 
 ```bash
-uv run asdabot auth login       # Opens browser — log in to ASDA
-echo "ASDA_CARD_CVV=1234" > ~/.config/asdabot/.env
+asdabot auth login # Opens browser — log in to ASDA
+echo "ASDA_CARD_CVV=1234" > ~/.config/asdabot/.env # Store your CVV code for payment automation
 ```
 
 Login automatically fetches your delivery address and store from your ASDA account.
@@ -28,24 +32,29 @@ Login automatically fetches your delivery address and store from your ASDA accou
 ## Usage
 
 ```bash
-uv run asdabot search "milk"
-uv run asdabot basket add 165468
-uv run asdabot slots list
-uv run asdabot slots book <SLOT_ID>
-uv run asdabot checkout -y
+asdabot search "milk"
+asdabot basket add 165468
+asdabot slots list
+asdabot slots book <SLOT_ID>
+asdabot checkout
 ```
 
-## Claude Code plugin
+## Claude Code Plugin
 
 Works as a [Claude Code plugin](https://code.claude.com/docs/en/plugins.md) — Claude can manage your grocery shopping autonomously.
+
+```
+/plugin marketplace add MarkDunne/AsdaBot
+/plugin install asdabot@asdabot
+```
+
+Or for local development:
 
 ```bash
 claude --plugin-dir /path/to/AsdaBot
 ```
 
 ## Commands
-
-All commands are run as `uv run asdabot <command>`.
 
 | Command | Description |
 |---------|-------------|
@@ -109,17 +118,37 @@ All config lives in `~/.config/asdabot/`:
 
 ### Server deployment
 
-On a headless Linux server, Camoufox uses a virtual display (Xvfb) automatically — no GUI needed for checkout. Install `xvfb` (`apt install xvfb`) and the CLI handles the rest.
+Checkout and login both require a browser. On a headless Linux server, install `xvfb` (`apt install xvfb`) — Camoufox uses it as a virtual display.
 
-For the one-time login, use noVNC to access the browser remotely:
+For the one-time login, either authenticate locally and copy the config:
+
 ```bash
-apt install xvfb x11vnc novnc
-Xvfb :99 -screen 0 1920x1080x24 &
-export DISPLAY=:99
-x11vnc -display :99 -nopw -listen 0.0.0.0 -forever &
-websockify --web=/usr/share/novnc 6080 localhost:5900 &
-uv run asdabot auth login  # Complete login via http://server:6080/vnc.html
+asdabot auth login                                  # On your local machine
+scp -r ~/.config/asdabot/ server:~/.config/asdabot/
 ```
+
+Or use SSH X forwarding to run the login browser on the server:
+
+```bash
+ssh -X server
+asdabot auth login  # Browser opens on your local display
+```
+
+## Security and Disclaimer
+
+**This is an unofficial tool. It is not affiliated with, endorsed by, or supported by ASDA or Walmart.** Use it at your own risk. It automates a real shopping account and places real orders with real money.
+
+**Sensitive data handling:**
+
+- **CVV** is stored in plaintext in `~/.config/asdabot/.env`. It is only used to fill the Ingenico payment iframe in the browser and is never logged, printed, or transmitted by asdabot itself.
+- **Auth tokens** are stored in plaintext in `~/.config/asdabot/account.json`. Only token expiry times are shown in CLI output, never the tokens themselves.
+- **Claude Code plugin caveat.** While asdabot does not include sensitive data in its CLI output, there is no guarantee that Claude will not independently read config files such as `.env` or `account.json`. Claude Code has access to your filesystem and may read files at its own discretion.
+
+**Recommendations:**
+
+- Restrict file permissions: `chmod 600 ~/.config/asdabot/.env ~/.config/asdabot/account.json`
+- Do not commit `~/.config/asdabot/` to version control
+- Review your basket before confirming checkout — `asdabot checkout -y` places a real order immediately with no confirmation prompt
 
 ## Technical notes
 

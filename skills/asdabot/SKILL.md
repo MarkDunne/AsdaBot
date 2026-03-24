@@ -11,7 +11,7 @@ The `asdabot` command must be available on PATH. Install with `uv tool install a
 
 - ASDA account with a saved delivery address and payment card.
 - One-time setup: `asdabot auth login` — opens a browser, user logs in manually. Saves tokens, address, and store automatically.
-- CVV must be set in `~/.config/asdabot/.env` (`ASDA_CARD_CVV=XXXX`).
+- User has configured `~/.config/asdabot/.env`
 - Check auth with `asdabot auth status`. Refresh tokens last 90 days (rolling).
 
 ## Command Reference
@@ -57,8 +57,7 @@ asdabot checkout -y                # Place order (headless browser)
 - **Always use `-y` flag** — the interactive prompt blocks non-interactive contexts.
 - **CRITICAL: Before running checkout, show the user the order summary and get explicit approval in chat.** Run `asdabot basket show` first, present items and total, ask user to confirm.
 - Uses Camoufox (anti-detect Firefox) headlessly to handle the Ingenico payment flow.
-- CVV is read from `~/.config/asdabot/.env` — never logged or displayed.
-- Requires: items in basket, a booked slot, CVV in .env, and a saved card on the ASDA account.
+- Requires: items in basket, a booked slot, `~/.config/asdabot/.env` configured, and a saved card and address on the ASDA account.
 
 ### Orders
 ```bash
@@ -119,7 +118,6 @@ If the user asks to "do the weekly shop" or "order my regulars":
 - Basket/Slots/Orders: Salesforce Commerce Cloud (SFCC) API via proxy
 - Auth: SLAS OAuth2 with 90-day rolling refresh tokens
 - Payment: Camoufox headless browser → Ingenico hosted tokenization iframe
-- Secrets: `~/.config/asdabot/.env` (CVV only)
 
 ## Self-Correcting
 

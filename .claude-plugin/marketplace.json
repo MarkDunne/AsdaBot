@@ -1,0 +1,16 @@
+{
+  "name": "asdabot",
+  "owner": {
+    "name": "Mark Dunne"
+  },
+  "metadata": {
+    "description": "Autonomous grocery shopping on ASDA from the terminal"
+  },
+  "plugins": [
+    {
+      "name": "asdabot",
+      "source": "./",
+      "description": "Autonomous grocery shopping on ASDA. Search products, manage baskets, book delivery slots, and place orders."
+    }
+  ]
+}
