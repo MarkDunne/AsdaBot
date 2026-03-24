@@ -72,4 +72,4 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"asdabot/cli.py" = ["T201", "PLC0415"]  # lazy imports for checkout (avoids 1s startup)
+"asdabot/cli.py" = ["T201", "PLC0415", "B008"]  # lazy imports, typer uses defaults

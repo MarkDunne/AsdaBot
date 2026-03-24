@@ -38,6 +38,11 @@
 - **Important**: Only ONE basket allowed per customer. Cannot create a second.
 - **Important**: Must call `PUT .../baskets/{id}/customer` before any PATCH operations
   on a new basket, otherwise get 400 errors.
+- **Important**: `POST .../baskets/{id}/items` accepts an array body for bulk adds.
+  If any item in the array is unavailable for the booked slot, the entire request
+  returns 400 with `SYS-5011: "Product is Not Available for selected slot."` and
+  no items are added. Product availability is slot-dependent — a product may be
+  searchable but rejected at basket-add time if the slot can't fulfil it.
 
 ### 3. Algolia Product Search
 - **App ID**: `8I6WSKCCNV`

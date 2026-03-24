@@ -63,6 +63,7 @@ claude --plugin-dir /path/to/AsdaBot
 | `product <CIN>` | Full product details by CIN (Customer Item Number) |
 | `basket show` | View current basket |
 | `basket add <CIN>` | Add product to basket |
+| `basket add-many <CIN> ...` | Add multiple products in one request |
 | `basket remove <ITEM_ID>` | Remove item from basket |
 | `basket clear` | Clear all items |
 | `slots list` | List available delivery slots (max 3 days) |

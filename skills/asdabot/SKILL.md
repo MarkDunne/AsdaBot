@@ -31,14 +31,17 @@ asdabot product <CIN>              # Full product info (description, nutrition, 
 
 ### Basket
 ```bash
-asdabot basket show                # View basket
-asdabot basket add <CIN>           # Add product by CIN
-asdabot basket add <CIN> -q 3     # Add with quantity
-asdabot basket remove <ITEM_ID>   # Remove by item ID
-asdabot basket clear               # Clear all items
+asdabot basket show                            # View basket
+asdabot basket add <CIN>                       # Add product by CIN
+asdabot basket add <CIN> -q 3                 # Add with quantity
+asdabot basket add-many <CIN> <CIN> <CIN>     # Add multiple products in one request
+asdabot basket remove <ITEM_ID>               # Remove by item ID
+asdabot basket clear                           # Clear all items
 ```
 - ASDA allows **one basket per customer**. Use `basket clear` to start fresh.
-- Multiple `basket add` calls can be run in parallel.
+- **Prefer `basket add-many`** over multiple `basket add` calls — it adds all items in a single API request.
+- `add-many` is atomic: if any item is rejected (e.g. unavailable for the booked slot), none are added. This is intentional — a partial basket may require changing plans.
+- Do NOT run multiple `basket add` calls in parallel — use `basket add-many` instead.
 
 ### Delivery Slots
 ```bash
@@ -80,9 +83,8 @@ asdabot auth login                 # One-time: open browser for login (interacti
 # 1. Search and build basket
 asdabot basket clear
 asdabot search "semi skimmed milk"
-asdabot basket add 165468
 asdabot search "eggs"
-asdabot basket add 166781
+asdabot basket add-many 165468 166781
 asdabot basket show
 
 # 2. Find and book a delivery slot
@@ -98,11 +100,12 @@ asdabot checkout -y              # Only after user confirms in chat
 
 If the user asks to "do the weekly shop" or "order my regulars":
 1. `asdabot basket clear`
-2. Search and add each item the user wants
-3. `asdabot slots list` — find a slot
-4. `asdabot slots book <SLOT_ID>`
-5. Show basket summary, get user approval
-6. `asdabot checkout -y`
+2. Search for each item the user wants (collect CINs)
+3. `asdabot basket add-many <CIN1> <CIN2> ...` — add all items in one request
+4. `asdabot slots list` — find a slot
+5. `asdabot slots book <SLOT_ID>`
+6. Show basket summary, get user approval
+7. `asdabot checkout -y`
 
 ## Important Notes
 

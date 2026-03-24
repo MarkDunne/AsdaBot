@@ -11,6 +11,15 @@ from asdabot.config import SFCC_ORG, SFCC_PROXY_BASE, SITE_ID
 TIMEOUT = 30.0
 
 
+def _extract_sfcc_error(detail: dict | str) -> str:
+    """Pull a human-readable message from an SFCC error response."""
+    if isinstance(detail, dict):
+        desc = detail.get("statusDetails", {}).get("description")
+        if desc:
+            return desc
+    return str(detail)[:500]
+
+
 def _headers() -> dict:
     return {
         "authorization": f"Bearer {get_slas_bearer_token()}",
@@ -101,13 +110,35 @@ def get_basket() -> dict:
     return resp.json()
 
 
-def add_to_basket(product_id: str, quantity: int = 1, price: float = 0.0) -> dict:
+def add_to_basket(
+    items: list[dict[str, str | int | float]],
+) -> dict:
+    """Add one or more items to the basket in a single request.
+
+    Each item dict must have keys: productId, quantity, price.
+    If any item is rejected by ASDA (e.g. unavailable for the booked slot),
+    the entire request fails and nothing is added.
+    """
     basket_id = get_basket_id()
-    body = [{"productId": product_id, "itemId": "", "quantity": quantity, "price": price}]
+    body = [
+        {
+            "productId": item["productId"],
+            "itemId": "",
+            "quantity": item["quantity"],
+            "price": item["price"],
+        }
+        for item in items
+    ]
     resp = httpx.post(
         _url(_basket_path(basket_id, "/items")), headers=_headers(), json=body, timeout=TIMEOUT
     )
-    resp.raise_for_status()
+    if resp.status_code >= 400:
+        try:
+            detail = resp.json()
+        except Exception:
+            detail = resp.text[:500]
+        msg = _extract_sfcc_error(detail)
+        raise RuntimeError(msg)
     return resp.json()
 
 
@@ -154,7 +185,7 @@ def _patch_basket(body: dict) -> dict:
         detail = resp.json()
     except Exception:
         detail = resp.text[:500]
-    raise RuntimeError(f"Basket PATCH failed ({resp.status_code}): {detail}")
+    raise RuntimeError(_extract_sfcc_error(detail))
 
 
 def get_delivery_slots(address: dict, start_date: str, end_date: str) -> dict:

@@ -97,9 +97,7 @@ def auth_status():
 def auth_refresh():
     """Manually refresh tokens."""
     account = auth.refresh_tokens()
-    console.print(
-        f"[green]Refreshed.[/green] Customer: {account['tokens']['customer_id']}"
-    )
+    console.print(f"[green]Refreshed.[/green] Customer: {account['tokens']['customer_id']}")
 
 
 # -- Search --
@@ -263,7 +261,43 @@ def basket_add(
     price = hit.get("PRICES", {}).get("EN", {}).get("PRICE", 0)
     console.print(f"Adding {quantity}x {hit.get('NAME', '?')} (£{price:.2f})...")
 
-    result = api.add_to_basket(product_id, quantity=quantity, price=price)
+    result = api.add_to_basket([{"productId": product_id, "quantity": quantity, "price": price}])
+    console.print(
+        f"[green]Done![/green] Basket: {int(result.get('c_totalQty', 0))} items, "
+        f"£{result.get('orderTotal', 0):.2f}"
+    )
+
+
+@basket_app.command("add-many")
+def basket_add_many(
+    product_ids: list[str] = typer.Argument(..., help="Product CINs to add"),
+):
+    """Add multiple products to basket in a single request.
+
+    All items are added atomically — if any item is rejected (e.g. unavailable
+    for the booked delivery slot), none are added.
+    """
+    if not product_ids:
+        console.print("[red]No product IDs provided.[/red]")
+        raise typer.Exit(1)
+
+    hits = search.lookup_products(product_ids).get("hits", [])
+    found_cins = {str(h.get("CIN")): h for h in hits}
+
+    missing = [pid for pid in product_ids if pid not in found_cins]
+    if missing:
+        console.print(f"[red]Products not found: {', '.join(missing)}[/red]")
+        raise typer.Exit(1)
+
+    items = []
+    for pid in product_ids:
+        hit = found_cins[pid]
+        price = hit.get("PRICES", {}).get("EN", {}).get("PRICE", 0)
+        items.append({"productId": pid, "quantity": 1, "price": price})
+        console.print(f"  {hit.get('NAME', '?')} (£{price:.2f})")
+
+    console.print(f"\nAdding {len(items)} items...")
+    result = api.add_to_basket(items)
     console.print(
         f"[green]Done![/green] Basket: {int(result.get('c_totalQty', 0))} items, "
         f"£{result.get('orderTotal', 0):.2f}"
@@ -451,6 +485,6 @@ def orders_cmd():
 def main():
     try:
         app()
-    except AuthError as e:
+    except (AuthError, RuntimeError) as e:
         console.print(f"[red]{e}[/red]")
         raise SystemExit(1) from None
