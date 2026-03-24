@@ -1,20 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "asdabot"
 version = "0.1.0"
 description = "CLI for autonomous grocery shopping on ASDA"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
+authors = [{ name = "Mark Dunne" }]
+keywords = ["asda", "groceries", "shopping", "delivery", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business",
+]
 dependencies = [
     "algoliasearch>=4.37.1",
     "camoufox>=0.4.11",
     "httpx>=0.28.1",
     "python-dotenv>=1.0.1",
     "rich>=14.3.3",
+    "tenacity>=9.1.4",
     "typer>=0.24.1",
 ]
 
 [project.scripts]
-asda = "asdabot.cli:main"
+asdabot = "asdabot.cli:main"
+
+[project.urls]
+Repository = "https://github.com/MarkDunne/AsdaBot"
 
 [dependency-groups]
 dev = [
@@ -55,4 +73,3 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "asdabot/cli.py" = ["T201", "PLC0415"]  # lazy imports for checkout (avoids 1s startup)
-"asdabot/checkout.py" = ["T201", "S603", "S607"]  # subprocess + print in login flow

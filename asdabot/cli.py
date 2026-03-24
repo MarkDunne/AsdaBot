@@ -9,22 +9,18 @@ from rich.console import Console
 from rich.table import Table
 
 from asdabot import api, auth, search
-from asdabot.config import (
-    build_delivery_location,
-    build_shipping_address,
-    load_address,
-    load_tokens,
-    save_address,
-)
+from asdabot.auth import AuthError, require_account
+from asdabot.config import get_store_id, load_account
 
 app = typer.Typer(help="ASDA Grocery CLI — search, browse, and manage your basket.")
 console = Console()
 
 
 def _require_address() -> dict:
-    addr = load_address()
-    if not addr:
-        console.print("[red]No address saved. Run 'asda address set' first.[/red]")
+    account = require_account()
+    addr = account.get("address", {})
+    if not addr or not addr.get("address1"):
+        console.print("[red]No address on account. Check your ASDA account settings.[/red]")
         raise typer.Exit(1)
     return addr
 
@@ -44,26 +40,36 @@ app.add_typer(auth_app, name="auth")
 
 @auth_app.command("login")
 def auth_login():
-    """Open browser to log in. Saves session state and auth tokens."""
+    """Open browser to log in. Saves session state, tokens, and delivery address."""
     from asdabot.checkout import browser_login
 
-    if browser_login():
-        console.print("[green]Login successful! Tokens and browser state saved.[/green]")
-    else:
+    account = browser_login()
+    if not account:
         console.print("[red]Could not extract tokens. Did you log in?[/red]")
+        raise typer.Exit(1)
+
+    addr = account.get("address", {})
+    console.print("[green]Login successful![/green]")
+    console.print(f"  Store: {account.get('store_id', '?')}")
+    if addr.get("address1"):
+        console.print(
+            f"  Address: {addr['address1']}, {addr.get('address2', '')}, "
+            f"{addr.get('city', '')}, {addr.get('postcode', '')}"
+        )
 
 
 @auth_app.command("status")
 def auth_status():
     """Show current auth status and token expiry."""
-    tokens = load_tokens()
-    if not tokens:
-        console.print("[red]Not authenticated. Run 'asda auth login'.[/red]")
+    account = load_account()
+    if not account:
+        console.print("[red]Not authenticated. Run 'asdabot auth login'.[/red]")
         return
 
+    tokens = account.get("tokens", {})
     now = time.time()
     expires_at = tokens.get("expires_at", 0)
-    refresh_expires_at = tokens.get("refresh_token_expires_at", 0)
+    refresh_expires_at = tokens.get("refresh_expires_at", 0)
 
     if expires_at and expires_at > now:
         access = f"[green]valid[/green] ({int((expires_at - now) // 60)}m)"
@@ -73,70 +79,26 @@ def auth_status():
     if refresh_expires_at and refresh_expires_at > now:
         refresh = f"[green]valid[/green] ({int((refresh_expires_at - now) // 86400)}d)"
     else:
-        refresh = "[red]expired — run 'asda auth login'[/red]"
+        refresh = "[red]expired — run 'asdabot auth login'[/red]"
 
-    console.print(f"Customer: [bold]{tokens.get('SLAS.CUSTOMER_ID', '?')}[/bold]")
+    console.print(f"Customer: [bold]{tokens.get('customer_id', '?')}[/bold]")
     console.print(f"Access token: {access}")
     console.print(f"Refresh token: {refresh}")
+    console.print(f"Store: {account.get('store_id', '?')}")
+
+    addr = account.get("address", {})
+    if addr.get("address1"):
+        console.print(
+            f"Address: {addr['address1']}, {addr.get('city', '')}, {addr.get('postcode', '')}"
+        )
 
 
 @auth_app.command("refresh")
 def auth_refresh():
     """Manually refresh tokens."""
-    tokens = auth.refresh_tokens()
-    console.print(f"[green]Refreshed.[/green] Customer: {tokens['SLAS.CUSTOMER_ID']}")
-
-
-# -- Address --
-
-address_app = typer.Typer(help="Manage delivery address.")
-app.add_typer(address_app, name="address")
-
-
-@address_app.command("set")
-def address_set(
-    address1: str = typer.Option(..., prompt=True),
-    address2: str = typer.Option("", prompt=True),
-    city: str = typer.Option(..., prompt=True),
-    postcode: str = typer.Option(..., prompt=True),
-    latitude: str = typer.Option(..., prompt=True),
-    longitude: str = typer.Option(..., prompt=True),
-    first_name: str = typer.Option(..., prompt=True),
-    last_name: str = typer.Option(..., prompt=True),
-    crm_address_id: str = typer.Option("", prompt="CRM Address ID (from browser)"),
-):
-    """Set delivery address."""
-    pc = postcode.replace(" ", "")
-    save_address(
-        {
-            "address1": address1,
-            "address2": address2,
-            "city": city,
-            "countryCode": "GB",
-            "postalCode": pc,
-            "stateCode": "United Kingdom",
-            "firstName": first_name,
-            "lastName": last_name,
-            "asdaLatitude": latitude,
-            "asdaLongitude": longitude,
-            "asdaPostcode": pc,
-            "asdaAddressType": "House",
-            "asdaCrmAddressId": crm_address_id,
-        }
-    )
-    console.print(f"[green]Address saved:[/green] {address1}, {city}, {postcode}")
-
-
-@address_app.command("show")
-def address_show():
-    """Show saved delivery address."""
-    addr = load_address()
-    if not addr:
-        console.print("[yellow]No address saved. Run 'asda address set'.[/yellow]")
-        return
+    account = auth.refresh_tokens()
     console.print(
-        f"{addr['address1']}, {addr.get('address2', '')}, "
-        f"{addr['city']}, {addr.get('postalCode', '')}"
+        f"[green]Refreshed.[/green] Customer: {account['tokens']['customer_id']}"
     )
 
 
@@ -171,6 +133,7 @@ def search_cmd(
         cins = [str(h.get("CIN", "")) for h in hits]
         details = api.get_product_details(cins)
 
+    store_id = get_store_id()
     table = Table(title=f"Search: {query} ({results.get('nbHits', 0)} total)")
     table.add_column("CIN", style="dim")
     table.add_column("Name")
@@ -185,7 +148,7 @@ def search_cmd(
     for hit in hits:
         prices = hit.get("PRICES", {}).get("EN", {})
         stock = hit.get("STOCK", {})
-        stock_val = stock.get("4619", 0) if isinstance(stock, dict) else 0
+        stock_val = stock.get(store_id, 0) if isinstance(stock, dict) else 0
         cin = str(hit.get("CIN", ""))
 
         row = [
@@ -338,7 +301,7 @@ def slots_list(
     end = (tomorrow + timedelta(days=days)).strftime("%Y-%m-%dT00:00:00Z")
 
     console.print(f"Fetching slots for {addr['address1']}, {addr['city']}...")
-    data = api.get_delivery_slots(build_delivery_location(addr), start, end)
+    data = api.get_delivery_slots(addr, start, end)
     slot_days = data.get("c_deliverySlotsData", {}).get("slot_days", [])
 
     if not slot_days:
@@ -380,7 +343,7 @@ def slots_book(
     """Book a delivery slot."""
     addr = _require_address()
     console.print("Booking slot...")
-    result = api.book_slot(slot_id, build_shipping_address(addr))
+    result = api.book_slot(slot_id, addr)
 
     booked = result.get("c_asdaBookedSlotDetail", {})
     if booked:
@@ -411,7 +374,7 @@ def checkout(
         console.print("[red]Basket is empty.[/red]")
         raise typer.Exit(1)
     if not booked_slot:
-        console.print("[red]No slot booked. Run 'asda slots book' first.[/red]")
+        console.print("[red]No slot booked. Run 'asdabot slots book' first.[/red]")
         raise typer.Exit(1)
 
     s = booked_slot.get("start_time", "")
@@ -486,4 +449,8 @@ def orders_cmd():
 
 
 def main():
-    app()
+    try:
+        app()
+    except AuthError as e:
+        console.print(f"[red]{e}[/red]")
+        raise SystemExit(1) from None

@@ -8,8 +8,7 @@ from dotenv import load_dotenv
 
 CONFIG_DIR = Path.home() / ".config" / "asdabot"
 ENV_FILE = CONFIG_DIR / ".env"
-TOKEN_FILE = CONFIG_DIR / "tokens.json"
-ADDRESS_FILE = CONFIG_DIR / "address.json"
+ACCOUNT_FILE = CONFIG_DIR / "account.json"
 BROWSER_STATE_DIR = CONFIG_DIR / "browser-state"
 
 load_dotenv(ENV_FILE)
@@ -23,72 +22,34 @@ ALGOLIA_INDEX = "ASDA_PRODUCTS"
 SFCC_PROXY_BASE = "https://www.asda.com/mobify/proxy/ghs-api"
 SFCC_ORG = "f_ecom_bjgs_prd"
 SITE_ID = "ASDA_GROCERIES"
-DEFAULT_STORE_ID = "4619"
+
+# ASDA customer profile API (Cloudflare-protected, only callable from browser)
+PROFILE_API_URL = "https://api2.asda.com/external/customers/v1/profile?type=noncard"
+PROFILE_API_KEY = "bc042eff107c4bca87dccb19ae707d16"
+
+# Used for search stock levels before login — any valid store works
+FALLBACK_STORE_ID = "4619"
 
 
 def ensure_config_dir():
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _load_json(path: Path) -> dict | None:
-    return json.loads(path.read_text()) if path.exists() else None
+def load_account() -> dict | None:
+    return json.loads(ACCOUNT_FILE.read_text()) if ACCOUNT_FILE.exists() else None
 
 
-def _save_json(path: Path, data: dict):
+def save_account(account: dict):
     ensure_config_dir()
-    path.write_text(json.dumps(data, indent=2))
+    ACCOUNT_FILE.write_text(json.dumps(account, indent=2))
 
 
-def load_tokens() -> dict | None:
-    return _load_json(TOKEN_FILE)
-
-
-def save_tokens(tokens: dict):
-    _save_json(TOKEN_FILE, tokens)
-
-
-def load_address() -> dict | None:
-    return _load_json(ADDRESS_FILE)
-
-
-def save_address(address: dict):
-    _save_json(ADDRESS_FILE, address)
+def get_store_id() -> str:
+    account = load_account()
+    if account:
+        return account.get("store_id", FALLBACK_STORE_ID)
+    return FALLBACK_STORE_ID
 
 
 def get_card_cvv() -> str:
     return os.environ.get("ASDA_CARD_CVV", "")
-
-
-def build_delivery_location(addr: dict) -> dict:
-    """Build the delivery location dict for slot queries."""
-    return {
-        "address1": addr["address1"],
-        "address2": addr.get("address2", ""),
-        "city": addr["city"],
-        "countryCode": "GB",
-        "asdaLatitude": addr["asdaLatitude"],
-        "asdaLongitude": addr["asdaLongitude"],
-        "asdaPostcode": addr["asdaPostcode"],
-    }
-
-
-def build_shipping_address(addr: dict) -> dict:
-    """Build the full shipping address dict for slot booking."""
-    return {
-        "address1": addr["address1"],
-        "address2": addr.get("address2", ""),
-        "city": addr["city"],
-        "countryCode": "GB",
-        "postalCode": addr["postalCode"],
-        "stateCode": "United Kingdom",
-        "firstName": addr["firstName"],
-        "lastName": addr["lastName"],
-        "custom": {
-            "asdaCrmAddressId": addr.get("asdaCrmAddressId", ""),
-            "asdaAddressType": addr.get("asdaAddressType", "House"),
-            "asdaDeliveryNote": "",
-            "asdaLatitude": addr["asdaLatitude"],
-            "asdaLongitude": addr["asdaLongitude"],
-            "asdaIsPrimaryAddress": True,
-        },
-    }

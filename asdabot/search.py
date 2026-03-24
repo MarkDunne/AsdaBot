@@ -4,7 +4,7 @@ import time
 
 from algoliasearch.search.client import SearchClientSync
 
-from asdabot.config import ALGOLIA_API_KEY, ALGOLIA_APP_ID, ALGOLIA_INDEX, DEFAULT_STORE_ID
+from asdabot.config import ALGOLIA_API_KEY, ALGOLIA_APP_ID, ALGOLIA_INDEX, get_store_id
 
 PRODUCT_ATTRIBUTES = [
     "STATUS",
@@ -16,7 +16,7 @@ PRODUCT_ATTRIBUTES = [
     "PRICES.EN",
     "SALES_TYPE",
     "MAX_QTY",
-    f"STOCK.{DEFAULT_STORE_ID}",
+    "STOCK",
     "IS_FROZEN",
     "IS_BWS",
     "PROMOS.EN",
@@ -27,7 +27,7 @@ PRODUCT_ATTRIBUTES = [
 ]
 
 
-def _build_filters(store_id: str = DEFAULT_STORE_ID) -> str:
+def _build_filters(store_id: str) -> str:
     now = int(time.time())
     return (
         "(STATUS:A OR STATUS:I) "
@@ -45,8 +45,9 @@ def search_products(
     query: str,
     hits_per_page: int = 20,
     page: int = 0,
-    store_id: str = DEFAULT_STORE_ID,
+    store_id: str | None = None,
 ) -> dict:
+    store_id = store_id or get_store_id()
     client = SearchClientSync(ALGOLIA_APP_ID, ALGOLIA_API_KEY)
     try:
         result = client.search_single_index(
@@ -72,9 +73,10 @@ def search_products(
 
 def lookup_products(
     product_ids: list[str],
-    store_id: str = DEFAULT_STORE_ID,
+    store_id: str | None = None,
 ) -> dict:
     """Look up specific products by CIN (product ID)."""
+    store_id = store_id or get_store_id()
     cin_filter = " OR ".join(f"CIN:'{pid}'" for pid in product_ids)
     now = int(time.time())
     filters = (

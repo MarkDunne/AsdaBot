@@ -5,7 +5,7 @@
 ### 1. ASDA API (`api2.asda.com`)
 - **Purpose**: Regulars, orders, customer profile
 - **Auth Headers**:
-  - `ocp-apim-subscription-key: bc042eff107c4bca87dccb19ae707d16`
+  - `ocp-apim-subscription-key: bc042eff...`
   - `x-correlation-id: <uuid>`
   - `x-apisession-id: <uuid>`
   - Cookie: `ADB2C.AUTH_TOKEN` (JWT from Azure AD B2C)
@@ -162,10 +162,10 @@
   - `c_asda_oms_exported` — whether order has been sent to ASDA's OMS
 
 ## Key Identifiers
-- Azure AD B2C Client ID: `8121a3d6-3e1c-4992-9b43-c0bf555159f5`
+- Azure AD B2C Client ID: `8121a3d6-...`
 - SFCC Org: `f_ecom_bjgs_prd`
-- SFCC Client ID (SLAS): `e68ca36d-6516-4704-b705-06b74f85ef2e`
-- Store OCAPI Client ID: `8dfc5903-ef23-4e14-a4c3-a4493040adac`
+- SFCC Client ID (SLAS): `e68ca36d-...`
+- Store OCAPI Client ID: `8dfc5903-...`
 - Site ID: `ASDA_GROCERIES`
 - SLAS Token Refresh URL: `.../shopper/auth/v1/organizations/f_ecom_bjgs_prd/oauth2/token`
 - Ingenico iframe name: `htpIframe0`

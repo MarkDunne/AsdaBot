@@ -1,9 +1,9 @@
 """ASDA API clients for authenticated operations via SFCC proxy."""
 
-import time
 import uuid
 
 import httpx
+from tenacity import retry, retry_if_result, stop_after_attempt, wait_exponential
 
 from asdabot.auth import get_customer_id, get_slas_bearer_token
 from asdabot.config import SFCC_ORG, SFCC_PROXY_BASE, SITE_ID
@@ -34,6 +34,44 @@ def _basket_path(basket_id: str, suffix: str = "") -> str:
 def _customer_path(suffix: str = "") -> str:
     cid = get_customer_id()
     return f"customer/shopper-customers/v1/organizations/{SFCC_ORG}/customers/{cid}{suffix}"
+
+
+# -- Address helpers --
+
+
+def delivery_location(addr: dict) -> dict:
+    """Reshape stored address for slot queries."""
+    return {
+        "address1": addr["address1"],
+        "address2": addr.get("address2", ""),
+        "city": addr["city"],
+        "countryCode": "GB",
+        "asdaLatitude": addr["latitude"],
+        "asdaLongitude": addr["longitude"],
+        "asdaPostcode": addr["postcode"],
+    }
+
+
+def shipping_address(addr: dict) -> dict:
+    """Reshape stored address for slot booking."""
+    return {
+        "address1": addr["address1"],
+        "address2": addr.get("address2", ""),
+        "city": addr["city"],
+        "countryCode": "GB",
+        "postalCode": addr["postcode"],
+        "stateCode": "United Kingdom",
+        "firstName": addr["first_name"],
+        "lastName": addr["last_name"],
+        "custom": {
+            "asdaCrmAddressId": addr.get("crm_address_id", ""),
+            "asdaAddressType": addr.get("address_type", "House"),
+            "asdaDeliveryNote": "",
+            "asdaLatitude": addr["latitude"],
+            "asdaLongitude": addr["longitude"],
+            "asdaIsPrimaryAddress": True,
+        },
+    }
 
 
 # -- Basket --
@@ -94,24 +132,29 @@ def clear_basket() -> dict:
 # -- Delivery Slots --
 
 
-def _patch_basket(body: dict, retries: int = 3) -> dict:
+def _patch_basket(body: dict) -> dict:
     """PATCH the basket with retry for transient 400s."""
     ensure_basket_ready()
     basket_id = get_basket_id()
     url = _url(_basket_path(basket_id))
-    for attempt in range(retries):
-        resp = httpx.patch(url, headers=_headers(), json=body, timeout=TIMEOUT)
-        if resp.status_code == 200:
-            return resp.json()
-        if resp.status_code == 400 and attempt < retries - 1:
-            time.sleep(1)
-            continue
-        try:
-            detail = resp.json()
-        except Exception:
-            detail = resp.text[:500]
-        raise RuntimeError(f"Basket PATCH failed ({resp.status_code}): {detail}")
-    return {}
+
+    @retry(
+        retry=retry_if_result(lambda r: r.status_code == 400),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        reraise=True,
+    )
+    def _do_patch():
+        return httpx.patch(url, headers=_headers(), json=body, timeout=TIMEOUT)
+
+    resp = _do_patch()
+    if resp.status_code == 200:
+        return resp.json()
+    try:
+        detail = resp.json()
+    except Exception:
+        detail = resp.text[:500]
+    raise RuntimeError(f"Basket PATCH failed ({resp.status_code}): {detail}")
 
 
 def get_delivery_slots(address: dict, start_date: str, end_date: str) -> dict:
@@ -121,12 +164,12 @@ def get_delivery_slots(address: dict, start_date: str, end_date: str) -> dict:
             "c_deliveryMethod": "delivery",
             "c_slotStartDate": start_date,
             "c_slotEndDate": end_date,
-            "c_deliveryLocation": address,
+            "c_deliveryLocation": delivery_location(address),
         }
     )
 
 
-def book_slot(slot_id: str, shipping_address: dict) -> dict:
+def book_slot(slot_id: str, address: dict) -> dict:
     return _patch_basket(
         {
             "c_slotId": slot_id,
@@ -134,7 +177,7 @@ def book_slot(slot_id: str, shipping_address: dict) -> dict:
                 {
                     "shipmentId": "me",
                     "shippingMethod": {"id": "ASDADelivery"},
-                    "shippingAddress": shipping_address,
+                    "shippingAddress": shipping_address(address),
                 }
             ],
         }
