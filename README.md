@@ -76,91 +76,17 @@ claude --plugin-dir /path/to/AsdaBot
 | `auth status` | Check token expiry and account info |
 | `auth refresh` | Manually refresh tokens |
 
-## Architecture
+## How it works
 
-```
-                    ┌─────────────┐
-                    │   Algolia   │  Product search (public API)
-                    └──────┬──────┘
-                           │
-┌──────────┐    ┌──────────┴──────────┐    ┌─────────────────┐
-│ asdabot  │───>│   SFCC Proxy API    │───>│  Salesforce CC  │
-│   CLI    │    │  (basket, slots,    │    │  (commerce      │
-│          │    │   orders)           │    │   backend)      │
-└────┬─────┘    └─────────────────────┘    └─────────────────┘
-     │
-     │ checkout only
-     v
-┌──────────┐    ┌─────────────────────┐
-│ Camoufox │───>│  Ingenico/Worldline │  Payment processing
-│ (headless│    │  (hosted iframe)    │  CVV + 3DS + device
-│  Firefox)│    └─────────────────────┘  fingerprint
-└──────────┘
-```
+AsdaBot uses your existing ASDA account to search products, manage your basket, book delivery slots, and place orders — all from the terminal. Login is handled through a browser session; subsequent operations use ASDA's APIs directly. Payment at checkout is processed via a headless browser.
 
-- **Search & basket**: Direct API calls to ASDA's Algolia search index and Salesforce Commerce Cloud (SFCC) backend
-- **Delivery slots**: API-driven slot listing and booking
-- **Payment**: Headless [Camoufox](https://github.com/daijro/camoufox) (anti-detect Firefox) handles the Ingenico payment flow including CVV (Card Verification Value) entry and 3D Secure authentication
-- **Auth**: OAuth2 tokens with 90-day rolling refresh — log in once, stay authenticated for months
-
-### Auth lifecycle
-
-- **Access tokens** expire every 30 minutes — auto-refreshed transparently
-- **Refresh tokens** last 90 days with a rolling window — each refresh resets the clock
-- **Browser session** (Camoufox profile) persists Cloudflare clearance and ASDA login cookies
-
-### Configuration
-
-All config lives in `~/.config/asdabot/`:
-
-| File | Purpose |
-|------|---------|
-| `account.json` | Auth tokens, store ID, and delivery address |
-| `.env` | Secrets (CVV) |
-| `browser-state/` | Camoufox persistent browser profile |
-
-### Server deployment
-
-Checkout and login both require a browser. On a headless Linux server, install `xvfb` (`apt install xvfb`) — Camoufox uses it as a virtual display.
-
-For the one-time login, either authenticate locally and copy the config:
-
-```bash
-asdabot auth login                                  # On your local machine
-scp -r ~/.config/asdabot/ server:~/.config/asdabot/
-```
-
-Or use SSH X forwarding to run the login browser on the server:
-
-```bash
-ssh -X server
-asdabot auth login  # Browser opens on your local display
-```
+Config is stored in `~/.config/asdabot/`.
 
 ## Security and Disclaimer
 
 **This is an unofficial tool. It is not affiliated with, endorsed by, or supported by ASDA or Walmart.** Use it at your own risk. It automates a real shopping account and places real orders with real money.
 
-**Sensitive data handling:**
-
-- **CVV** is stored in plaintext in `~/.config/asdabot/.env`. It is only used to fill the Ingenico payment iframe in the browser and is never logged, printed, or transmitted by asdabot itself.
-- **Auth tokens** are stored in plaintext in `~/.config/asdabot/account.json`. Only token expiry times are shown in CLI output, never the tokens themselves.
-- **Claude Code plugin caveat.** While asdabot does not include sensitive data in its CLI output, there is no guarantee that Claude will not independently read config files such as `.env` or `account.json`. Claude Code has access to your filesystem and may read files at its own discretion.
-
-**Recommendations:**
-
+- **CVV** is stored in `~/.config/asdabot/.env` and is only used to complete payment in the browser — never logged or transmitted by asdabot.
+- **Auth tokens** are stored in `~/.config/asdabot/account.json`. Only expiry times appear in CLI output.
 - Restrict file permissions: `chmod 600 ~/.config/asdabot/.env ~/.config/asdabot/account.json`
-- Do not commit `~/.config/asdabot/` to version control
-- Review your basket before confirming checkout — `asdabot checkout -y` places a real order immediately with no confirmation prompt
-
-## Technical notes
-
-See [docs/asda_api_notes.md](docs/asda_api_notes.md) for detailed reverse engineering notes on ASDA's API surface, auth flow, payment system, and the headless browser challenges we solved.
-
-## Limitations
-
-- One basket per customer — ASDA's backend enforces this
-- Slot queries limited to a 4-day window
-- Payment requires a browser — Ingenico's device fingerprinting can't be replicated via API
-- SFCC doesn't reflect cancellations made on the ASDA website
-- If the Camoufox session expires, run `asdabot auth login` again
+- Review your basket before confirming checkout — `asdabot checkout -y` places a real order immediately
