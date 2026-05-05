@@ -10,7 +10,7 @@ from rich.table import Table
 
 from asdabot import api, auth, search
 from asdabot.auth import AuthError, require_account
-from asdabot.config import get_store_id, load_account
+from asdabot.config import get_store_id, load_account, load_last_slots, save_last_slots
 
 app = typer.Typer(help="ASDA Grocery CLI — search, browse, and manage your basket.")
 console = Console()
@@ -226,7 +226,7 @@ def basket_show():
 
     table = Table(title=f"Basket ({len(items)} items)")
     table.add_column("CIN", style="dim")
-    table.add_column("Item ID", style="dim")
+    table.add_column("Item ID", style="dim", overflow="fold")
     table.add_column("Name")
     table.add_column("Qty", justify="right")
     table.add_column("Price", justify="right", style="green")
@@ -306,9 +306,10 @@ def basket_add_many(
 
 @basket_app.command("remove")
 def basket_remove(
-    item_id: str = typer.Argument(..., help="Item ID from 'basket show'"),
+    ref: str = typer.Argument(..., help="Product CIN or Item ID from 'basket show'"),
 ):
-    """Remove an item from basket."""
+    """Remove an item from basket. Accepts either a product CIN or a basket item ID."""
+    item_id = _resolve_basket_item(ref)
     result = api.remove_from_basket(item_id)
     console.print(
         f"[green]Removed.[/green] Basket: {int(result.get('c_totalQty', 0))} items, "
@@ -316,10 +317,52 @@ def basket_remove(
     )
 
 
+def _resolve_basket_item(ref: str) -> str:
+    """Resolve a CIN to its current basket itemId; pass itemIds through unchanged.
+
+    CINs are all-digit; itemIds are hex strings, so the dispatch is unambiguous.
+    """
+    if ref.isdigit():
+        items = api.get_basket().get("productItems", [])
+        matches = [it for it in items if str(it.get("productId")) == ref]
+        if not matches:
+            console.print(f"[red]No basket item with CIN {ref}.[/red]")
+            raise typer.Exit(1)
+        if len(matches) > 1:
+            console.print(
+                f"[red]Multiple basket items with CIN {ref} — pass the explicit itemId.[/red]"
+            )
+            raise typer.Exit(1)
+        return matches[0]["itemId"]
+    return ref
+
+
 # -- Slots --
 
 slots_app = typer.Typer(help="View and book delivery slots.")
 app.add_typer(slots_app, name="slots")
+
+
+def _resolve_slot(slot: str) -> str:
+    """Resolve a slot argument to a full slot ID.
+
+    Short numeric inputs are treated as a 1-based row # from the last
+    'slots list' output; anything else is assumed to already be a full ID.
+    """
+    if slot.isdigit() and len(slot) <= 4:
+        cached = load_last_slots()
+        idx = int(slot)
+        if not cached:
+            raise typer.BadParameter(
+                "No cached slot list found. Run 'asdabot slots list' first, then book by row #."
+            )
+        if not 1 <= idx <= len(cached):
+            raise typer.BadParameter(
+                f"Row # {idx} is out of range (1..{len(cached)}). "
+                "Re-run 'asdabot slots list' and try again."
+            )
+        return cached[idx - 1]
+    return slot
 
 
 @slots_app.command("list")
@@ -356,26 +399,32 @@ def slots_list(
     table.add_column("Price", justify="right", style="green")
     table.add_column("Slot ID", style="dim", overflow="fold")
 
+    slot_ids: list[str] = []
     for i, (date_str, slot) in enumerate(available, 1):
         price = slot.get("final_price", slot.get("slot_price", "?"))
+        slot_id = slot.get("slot_id", "")
+        slot_ids.append(slot_id)
         table.add_row(
             str(i),
             date_str,
             f"{slot['start_time'][11:16]}-{slot['end_time'][11:16]}",
             f"£{price}" if price else "Free",
-            slot.get("slot_id", ""),
+            slot_id,
         )
 
+    save_last_slots(slot_ids)
     console.print(table)
     console.print(f"\n{len(available)} slots available")
+    console.print("[dim]Book with the row #, e.g. 'asdabot slots book 11'.[/dim]")
 
 
 @slots_app.command("book")
 def slots_book(
-    slot_id: str = typer.Argument(..., help="Full slot ID to book"),
+    slot: str = typer.Argument(..., help="Row # from 'slots list' (e.g. 11) or a full slot ID"),
 ):
     """Book a delivery slot."""
     addr = _require_address()
+    slot_id = _resolve_slot(slot)
     console.print("Booking slot...")
     result = api.book_slot(slot_id, addr)
 

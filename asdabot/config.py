@@ -10,6 +10,7 @@ CONFIG_DIR = Path.home() / ".config" / "asdabot"
 ENV_FILE = CONFIG_DIR / ".env"
 ACCOUNT_FILE = CONFIG_DIR / "account.json"
 BROWSER_STATE_DIR = CONFIG_DIR / "browser-state"
+LAST_SLOTS_FILE = CONFIG_DIR / "last_slots.json"
 
 load_dotenv(ENV_FILE)
 
@@ -53,3 +54,14 @@ def get_store_id() -> str:
 
 def get_card_cvv() -> str:
     return os.environ.get("ASDA_CARD_CVV", "")
+
+
+def save_last_slots(slot_ids: list[str]):
+    ensure_config_dir()
+    LAST_SLOTS_FILE.write_text(json.dumps(slot_ids))
+
+
+def load_last_slots() -> list[str]:
+    if not LAST_SLOTS_FILE.exists():
+        return []
+    return json.loads(LAST_SLOTS_FILE.read_text())

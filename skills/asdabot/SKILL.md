@@ -35,7 +35,8 @@ asdabot basket show                            # View basket
 asdabot basket add <CIN>                       # Add product by CIN
 asdabot basket add <CIN> -q 3                 # Add with quantity
 asdabot basket add-many <CIN> <CIN> <CIN>     # Add multiple products in one request
-asdabot basket remove <ITEM_ID>               # Remove by item ID
+asdabot basket remove <CIN>                   # Remove by product CIN (preferred)
+asdabot basket remove <ITEM_ID>               # Remove by basket item ID (fallback)
 asdabot basket clear                           # Clear all items
 ```
 - ASDA allows **one basket per customer**. Use `basket clear` to start fresh.
@@ -47,10 +48,12 @@ asdabot basket clear                           # Clear all items
 ```bash
 asdabot slots list                 # List slots (default 3 days)
 asdabot slots list -d 2            # List slots for 2 days
-asdabot slots book <SLOT_ID>       # Book a slot
+asdabot slots book 11              # Book by row # from the latest list
+asdabot slots book <N>       # Book by full slot ID (scripting)
 ```
 - **Max `-d` value is 3.** ASDA limits queries to a 4-day window. Do NOT pass 4+.
-- Slot IDs are long base64 strings — copy the **full** ID.
+- `slots list` caches the ordered IDs to `~/.config/asdabot/last_slots.json`. `slots book <N>` resolves `N` against that cache — always re-run `slots list` immediately before booking so the `#` you pick is current.
+- Slot IDs are long base64 strings (~155 chars). The row-# form avoids the copy-paste pitfall where the Rich table wraps the ID across lines and a character gets lost. Prefer it.
 - Slot IDs encode the delivery address. Re-list after changing address.
 
 ### Checkout
@@ -89,7 +92,7 @@ asdabot basket show
 
 # 2. Find and book a delivery slot
 asdabot slots list
-asdabot slots book <SLOT_ID>
+asdabot slots book <N>
 
 # 3. Review and place the order
 asdabot basket show              # Show summary to user, ask for approval
@@ -103,7 +106,7 @@ If the user asks to "do the weekly shop" or "order my regulars":
 2. Search for each item the user wants (collect CINs)
 3. `asdabot basket add-many <CIN1> <CIN2> ...` — add all items in one request
 4. `asdabot slots list` — find a slot
-5. `asdabot slots book <SLOT_ID>`
+5. `asdabot slots book <N>`
 6. Show basket summary, get user approval
 7. `asdabot checkout -y`
 
