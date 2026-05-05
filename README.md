@@ -37,10 +37,11 @@ Login automatically fetches your delivery address and store from your ASDA accou
 
 ```bash
 asdabot search "milk"
-asdabot basket add 165468
+asdabot basket add-many 165468 166781   # add several products in one request
+asdabot basket show
 asdabot slots list
-asdabot slots book <SLOT_ID>
-asdabot checkout
+asdabot slots book 3                    # book by row # from the latest list
+asdabot checkout -y
 ```
 
 ## Claude Code Plugin
@@ -68,10 +69,10 @@ claude --plugin-dir /path/to/AsdaBot
 | `basket show` | View current basket |
 | `basket add <CIN>` | Add product to basket |
 | `basket add-many <CIN> ...` | Add multiple products in one request |
-| `basket remove <ITEM_ID>` | Remove item from basket |
+| `basket remove <CIN \| ITEM_ID>` | Remove item from basket (by product CIN or basket item ID) |
 | `basket clear` | Clear all items |
 | `slots list` | List available delivery slots (max 3 days) |
-| `slots book <SLOT_ID>` | Book a delivery slot |
+| `slots book <N \| SLOT_ID>` | Book a delivery slot (by row # from the latest `slots list`, or full slot ID) |
 | `checkout -y` | Place order via headless browser |
 | `orders` | Show recent orders with payment status |
 | `auth login` | Open browser for login (one-time) |
