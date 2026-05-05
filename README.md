@@ -1,6 +1,8 @@
 # AsdaBot
 
-Autonomous grocery shopping on ASDA from the terminal.
+Autonomous grocery shopping on ASDA from the terminal. CLI + Claude Code Plugin.
+
+Below is Claude Code using the tool to order ingredients for a lasagna.
 
 <img src="docs/demo.svg" alt="AsdaBot demo" />
 
