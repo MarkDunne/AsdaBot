@@ -6,8 +6,11 @@ login:
     uv run asdabot auth login
 
 lint:
-    uv run ruff check asdabot/
-    uv run ruff format --check asdabot/
+    uv run ruff check asdabot/ tests/
+    uv run ruff format --check asdabot/ tests/
+
+test:
+    uv run pytest tests/ -q
 
 fix:
     uv run ruff check --fix asdabot/

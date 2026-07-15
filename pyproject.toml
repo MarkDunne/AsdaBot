@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "asdabot"
-version = "1.0.0"
-description = "CLI for autonomous grocery shopping on ASDA"
+version = "1.0.2"
+description = "ASDA grocery shopping from the terminal — search, basket, slots; payment stays in your browser"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
 authors = [{ name = "Mark Dunne" }]
 keywords = ["asda", "groceries", "shopping", "delivery", "cli"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: End Users/Desktop",
     "Programming Language :: Python :: 3.12",
@@ -33,6 +33,7 @@ Repository = "https://github.com/MarkDunne/AsdaBot"
 
 [dependency-groups]
 dev = [
+    "pytest>=8.0",
     "ruff>=0.15.6",
 ]
 

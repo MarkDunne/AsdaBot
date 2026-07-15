@@ -48,7 +48,7 @@ asdabot checkout                        # opens ASDA checkout in your browser to
 
 ## Claude Code Plugin
 
-Works as a [Claude Code plugin](https://code.claude.com/docs/en/plugins.md) — Claude can manage your grocery shopping autonomously.
+Works as a [Claude Code plugin](https://code.claude.com/docs/en/plugins.md) — Claude searches, builds the basket, and books the slot; payment always stays with you in the browser.
 
 ```
 /plugin marketplace add MarkDunne/AsdaBot

@@ -45,7 +45,11 @@ def refresh_tokens() -> dict:
             "client_id": SLAS_CLIENT_ID,
         },
     )
-    resp.raise_for_status()
+    if resp.status_code >= 400:
+        raise AuthError(
+            f"ASDA rejected the session (HTTP {resp.status_code}). "
+            "Run 'asdabot auth login' to start a new one."
+        )
     data = resp.json()
 
     account["tokens"] = {
