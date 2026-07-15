@@ -9,9 +9,8 @@ The `asdabot` command must be available on PATH. Install with `uv tool install a
 
 ## Prerequisites
 
-- ASDA account with a saved delivery address and payment card.
-- One-time setup: `asdabot auth login` — opens a browser, user logs in manually. Saves tokens, address, and store automatically.
-- User has configured `~/.config/asdabot/.env`
+- ASDA account with a saved delivery address.
+- One-time setup: `asdabot auth login` — opens a browser window; the user logs in manually (with "Keep me signed in" ticked) and presses Enter in the terminal. Saves tokens, address, and store automatically.
 - Check auth with `asdabot auth status`. Refresh tokens last 90 days (rolling).
 
 ## Command Reference
@@ -40,6 +39,7 @@ asdabot basket remove <ITEM_ID>               # Remove by basket item ID (fallba
 asdabot basket clear                           # Clear all items
 ```
 - ASDA allows **one basket per customer**. Use `basket clear` to start fresh.
+- Once a slot is booked, `basket show` breaks out Items vs "Delivery & fees" — the fees line is the slot price plus ASDA's small-basket charge (applied to orders under their minimum spend).
 - **Prefer `basket add-many`** over multiple `basket add` calls — it adds all items in a single API request.
 - `add-many` is atomic: if any item is rejected (e.g. unavailable for the booked slot), none are added. This is intentional — a partial basket may require changing plans.
 - Do NOT run multiple `basket add` calls in parallel — use `basket add-many` instead.
@@ -58,12 +58,11 @@ asdabot slots book <N>       # Book by full slot ID (scripting)
 
 ### Checkout
 ```bash
-asdabot checkout -y                # Place order (headless browser)
+asdabot checkout                   # Prints order summary, opens ASDA checkout in the browser
 ```
-- **Always use `-y` flag** — the interactive prompt blocks non-interactive contexts.
-- **CRITICAL: Before running checkout, show the user the order summary and get explicit approval in chat.** Run `asdabot basket show` first, present items and total, ask user to confirm.
-- Uses Camoufox (anti-detect Firefox) headlessly to handle the Ingenico payment flow.
-- Requires: items in basket, a booked slot, `~/.config/asdabot/.env` configured, and a saved card and address on the ASDA account.
+- **Checkout does NOT place the order.** It prints the order summary and opens ASDA's checkout page in the user's browser — the user reviews and completes payment there manually.
+- Requires: items in basket and a booked slot.
+- After the user says they've paid, verify with `asdabot orders`.
 
 ### Orders
 ```bash
@@ -94,9 +93,9 @@ asdabot basket show
 asdabot slots list
 asdabot slots book <N>
 
-# 3. Review and place the order
-asdabot basket show              # Show summary to user, ask for approval
-asdabot checkout -y              # Only after user confirms in chat
+# 3. Review, then hand off to the user for payment
+asdabot basket show              # Show summary to user
+asdabot checkout                 # Opens ASDA checkout in their browser to pay
 ```
 
 ## Weekly Shop Shortcut
@@ -107,23 +106,22 @@ If the user asks to "do the weekly shop" or "order my regulars":
 3. `asdabot basket add-many <CIN1> <CIN2> ...` — add all items in one request
 4. `asdabot slots list` — find a slot
 5. `asdabot slots book <N>`
-6. Show basket summary, get user approval
-7. `asdabot checkout -y`
+6. Show basket summary
+7. `asdabot checkout` — the user completes payment in their browser
 
 ## Important Notes
 
-- **Checkout places a real order and charges real money.** Always get user approval first.
-- Never run `checkout -y` without explicit user confirmation in chat.
-- Config: `~/.config/asdabot/` (account.json, .env, browser-state/).
+- **Payment is always manual.** `checkout` only opens ASDA's payment page — the user pays in their own browser, so no money moves without them.
+- Config: `~/.config/asdabot/` (account.json, chrome-profile/).
 - Only one basket at a time — no parallel orders.
-- If checkout fails with "Session expired", user needs to run `asdabot auth login` again.
+- If commands fail with an auth error, the user needs to run `asdabot auth login` again (interactive — tell them to run it in their terminal).
 
 ## Architecture
 
 - Search: Algolia API (no auth, public keys)
 - Basket/Slots/Orders: Salesforce Commerce Cloud (SFCC) API via proxy
-- Auth: SLAS OAuth2 with 90-day rolling refresh tokens
-- Payment: Camoufox headless browser → Ingenico hosted tokenization iframe
+- Auth: SLAS OAuth2 with 90-day rolling refresh tokens; login captures the session from a real Chrome window via the Chrome DevTools Protocol
+- Payment: manual — ASDA's checkout page in the user's own browser
 
 ## Self-Correcting
 

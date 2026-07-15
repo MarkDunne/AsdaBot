@@ -2,6 +2,7 @@
 
 import json as jsonlib
 import time
+import webbrowser
 from datetime import UTC, datetime, timedelta
 
 import typer
@@ -10,7 +11,13 @@ from rich.table import Table
 
 from asdabot import api, auth, search
 from asdabot.auth import AuthError, require_account
-from asdabot.config import get_store_id, load_account, load_last_slots, save_last_slots
+from asdabot.config import (
+    ORDER_SUMMARY_URL,
+    get_store_id,
+    load_account,
+    load_last_slots,
+    save_last_slots,
+)
 
 app = typer.Typer(help="ASDA Grocery CLI — search, browse, and manage your basket.")
 console = Console()
@@ -32,6 +39,11 @@ def _format_price(price, offer: str = "") -> str:
     return s
 
 
+def _sfcc_json(value) -> dict:
+    """SFCC custom fields arrive as either parsed dicts or JSON strings."""
+    return jsonlib.loads(value) if isinstance(value, str) else value
+
+
 # -- Auth --
 
 auth_app = typer.Typer(help="Manage authentication.")
@@ -40,8 +52,8 @@ app.add_typer(auth_app, name="auth")
 
 @auth_app.command("login")
 def auth_login():
-    """Open browser to log in. Saves session state, tokens, and delivery address."""
-    from asdabot.checkout import browser_login
+    """Open a browser to log in. Saves tokens, store, and delivery address."""
+    from asdabot.browser import browser_login
 
     account = browser_login()
     if not account:
@@ -105,10 +117,7 @@ def auth_refresh():
 
 def _get_description(product: dict) -> str:
     """Extract a short description from SFCC product detail."""
-
-    bb = product.get("c_BRANDBANK_JSON", {})
-    if isinstance(bb, str):
-        bb = jsonlib.loads(bb)
+    bb = _sfcc_json(product.get("c_BRANDBANK_JSON", {}))
     return bb.get("regulatedProductName", "") or bb.get("productMarketing", "") or ""
 
 
@@ -177,9 +186,7 @@ def product_cmd(
         console.print(f"[red]Product {product_id} not found.[/red]")
         raise typer.Exit(1)
 
-    bb = product.get("c_BRANDBANK_JSON", {})
-    if isinstance(bb, str):
-        bb = jsonlib.loads(bb)
+    bb = _sfcc_json(product.get("c_BRANDBANK_JSON", {}))
 
     console.print(f"\n[bold]{product.get('name', '?')}[/bold]")
     console.print(f"  CIN: {product_id}")
@@ -243,7 +250,14 @@ def basket_show():
         )
 
     console.print(table)
-    console.print(f"\n[bold]Total: £{data.get('orderTotal', 0):.2f}[/bold]")
+    console.print(f"\nItems: £{data.get('productSubTotal', 0):.2f}")
+    slot = data.get("c_asdaBookedSlotDetail", {})
+    if slot:
+        s, e = slot.get("start_time", ""), slot.get("end_time", "")
+        console.print(
+            f"Delivery & fees ({s[:10]} {s[11:16]}-{e[11:16]}): £{data.get('shippingTotal', 0):.2f}"
+        )
+    console.print(f"[bold]Total: £{data.get('orderTotal', 0):.2f}[/bold]")
 
 
 @basket_app.command("add")
@@ -443,12 +457,8 @@ def slots_book(
 
 
 @app.command("checkout")
-def checkout(
-    confirm: bool = typer.Option(False, "--confirm", "-y", help="Skip confirmation"),
-):
-    """Place the order using a headless browser for payment."""
-    from asdabot.checkout import place_order_via_browser
-
+def checkout():
+    """Review the order and open ASDA's checkout in your browser to pay."""
     basket = api.get_basket()
     items = basket.get("productItems", [])
     booked_slot = basket.get("c_asdaBookedSlotDetail", {})
@@ -470,23 +480,14 @@ def checkout(
             f"- £{item.get('price', 0):.2f}"
         )
     console.print(
-        f"  Delivery: {s[:10]} {s[11:16]}-{e[11:16]} (£{booked_slot.get('final_price', '?')})"
+        f"  Delivery & fees: {s[:10]} {s[11:16]}-{e[11:16]} (£{basket.get('shippingTotal', 0):.2f})"
     )
     console.print(f"  [bold]Total: £{basket.get('orderTotal', 0):.2f}[/bold]\n")
 
-    if not confirm and not typer.confirm("Place this order?"):
-        raise typer.Exit(0)
-
-    console.print("Placing order...")
-    result = place_order_via_browser()
-
-    if result["success"]:
-        orders = api.get_orders().get("data", [])
-        order_no = orders[0].get("orderNo", "?") if orders else "?"
-        console.print(f"\n[bold green]Order placed! #{order_no}[/bold green]")
-    else:
-        console.print(f"\n[red]Checkout failed: {result.get('error', '?')}[/red]")
-        raise typer.Exit(1)
+    console.print("Opening ASDA checkout in your browser — log in and complete payment there.")
+    webbrowser.open(ORDER_SUMMARY_URL)
+    console.print(f"[dim]{ORDER_SUMMARY_URL}[/dim]")
+    console.print("[dim]After paying, verify with 'asdabot orders'.[/dim]")
 
 
 # -- Orders --
@@ -513,9 +514,7 @@ def orders_cmd():
         status = order.get("status", "")
         payment = order.get("c_ingenicoOgoneStatusCategory", "")
 
-        slot = order.get("c_asdaBookedSlotDetail", "{}")
-        if isinstance(slot, str):
-            slot = jsonlib.loads(slot)
+        slot = _sfcc_json(order.get("c_asdaBookedSlotDetail", "{}"))
         slot_start = slot.get("start_time", "")
         slot_str = f"{slot_start[:10]} {slot_start[11:16]}" if slot_start else ""
 

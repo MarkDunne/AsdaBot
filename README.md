@@ -1,6 +1,8 @@
 # AsdaBot
 
-Autonomous grocery shopping on ASDA from the terminal. CLI + Claude Code Plugin.
+Grocery shopping on ASDA from the terminal. CLI + Claude Code Plugin.
+
+AsdaBot handles everything up to payment — search, basket, delivery slots — then opens ASDA's checkout in your browser for you to review and pay. It never touches your card details.
 
 Below is Claude Code using the tool to order ingredients for a lasagna.
 
@@ -8,9 +10,8 @@ Below is Claude Code using the tool to order ingredients for a lasagna.
 
 ## Prerequisites
 
-You need an existing ASDA Groceries account with:
-- A saved delivery address
-- A saved payment card
+- An existing ASDA Groceries account with a saved delivery address
+- A Chromium-based browser (Chrome, Edge, Brave, or Chromium) for the one-time login — checkout opens in your default browser, whichever that is
 
 ## Install
 
@@ -27,11 +28,12 @@ uvx asdabot search "milk"
 ## Setup
 
 ```bash
-asdabot auth login # Opens browser — log in to ASDA
-echo "ASDA_CARD_CVV=1234" > ~/.config/asdabot/.env # Store your CVV code for payment automation
+asdabot auth login # Opens a browser window — log in to ASDA
 ```
 
-Login automatically fetches your delivery address and store from your ASDA account.
+A normal browser window opens (no automation flags — Cloudflare rejects logins otherwise). Log in with "Keep me signed in" ticked and press Enter in the terminal; asdabot then reads the session invisibly and fetches your delivery address and store.
+
+The session lasts 90 days and rolls forward on every use, so in practice you log in once.
 
 ## Usage
 
@@ -41,7 +43,7 @@ asdabot basket add-many 165468 166781   # add several products in one request
 asdabot basket show
 asdabot slots list
 asdabot slots book 3                    # book by row # from the latest list
-asdabot checkout -y
+asdabot checkout                        # opens ASDA checkout in your browser to pay
 ```
 
 ## Claude Code Plugin
@@ -73,7 +75,7 @@ claude --plugin-dir /path/to/AsdaBot
 | `basket clear` | Clear all items |
 | `slots list` | List available delivery slots (max 3 days) |
 | `slots book <N \| SLOT_ID>` | Book a delivery slot (by row # from the latest `slots list`, or full slot ID) |
-| `checkout -y` | Place order via headless browser |
+| `checkout` | Review the order and open ASDA checkout in your browser to pay |
 | `orders` | Show recent orders with payment status |
 | `auth login` | Open browser for login (one-time) |
 | `auth status` | Check token expiry and account info |
@@ -81,15 +83,16 @@ claude --plugin-dir /path/to/AsdaBot
 
 ## How it works
 
-AsdaBot uses your existing ASDA account to search products, manage your basket, book delivery slots, and place orders — all from the terminal. Login is handled through a browser session; subsequent operations use ASDA's APIs directly. Payment at checkout is processed via a headless browser.
+AsdaBot uses your existing ASDA account to search products, manage your basket, and book delivery slots — all from the terminal via ASDA's APIs. Login happens in a real browser window with no automation attached; once you've logged in, asdabot reads the session cookies from the browser profile invisibly and refreshes tokens automatically from then on. Checkout opens ASDA's own payment page in your browser — you review the order and pay there yourself.
+
+Basket totals shown by `basket show` and `checkout` break out items vs delivery & fees (the slot price plus ASDA's small-basket fee, if any).
 
 Config is stored in `~/.config/asdabot/`.
 
 ## Security and Disclaimer
 
-**This is an unofficial tool. It is not affiliated with, endorsed by, or supported by ASDA or Walmart.** Use it at your own risk. It automates a real shopping account and places real orders with real money.
+**This is an unofficial tool. It is not affiliated with, endorsed by, or supported by ASDA or Walmart.** Use it at your own risk. It automates a real shopping account.
 
-- **CVV** is stored in `~/.config/asdabot/.env` and is only used to complete payment in the browser — never logged or transmitted by asdabot.
+- **Payment is always manual.** asdabot never sees, stores, or enters your card details — payment happens on ASDA's own checkout page in your browser.
 - **Auth tokens** are stored in `~/.config/asdabot/account.json`. Only expiry times appear in CLI output.
-- Restrict file permissions: `chmod 600 ~/.config/asdabot/.env ~/.config/asdabot/account.json`
-- Review your basket before confirming checkout — `asdabot checkout -y` places a real order immediately
+- Restrict file permissions: `chmod 600 ~/.config/asdabot/account.json`

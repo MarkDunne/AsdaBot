@@ -1,18 +1,16 @@
 """Configuration and persistent state for ASDA API access."""
 
 import json
-import os
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 CONFIG_DIR = Path.home() / ".config" / "asdabot"
-ENV_FILE = CONFIG_DIR / ".env"
 ACCOUNT_FILE = CONFIG_DIR / "account.json"
-BROWSER_STATE_DIR = CONFIG_DIR / "browser-state"
+CHROME_PROFILE_DIR = CONFIG_DIR / "chrome-profile"
 LAST_SLOTS_FILE = CONFIG_DIR / "last_slots.json"
 
-load_dotenv(ENV_FILE)
+# ASDA site
+ASDA_BASE = "https://www.asda.com"
+ORDER_SUMMARY_URL = f"{ASDA_BASE}/groceries/checkout/order-summary"
 
 # Algolia (public)
 ALGOLIA_APP_ID = "8I6WSKCCNV"
@@ -50,10 +48,6 @@ def get_store_id() -> str:
     if account:
         return account.get("store_id", FALLBACK_STORE_ID)
     return FALLBACK_STORE_ID
-
-
-def get_card_cvv() -> str:
-    return os.environ.get("ASDA_CARD_CVV", "")
 
 
 def save_last_slots(slot_ids: list[str]):

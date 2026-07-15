@@ -1,10 +1,14 @@
-"""Product search via Algolia — no auth required."""
+"""Product search via Algolia's public REST API — no auth required."""
 
+import json
 import time
+from urllib.parse import urlencode
 
-from algoliasearch.search.client import SearchClientSync
+import httpx
 
 from asdabot.config import ALGOLIA_API_KEY, ALGOLIA_APP_ID, ALGOLIA_INDEX, get_store_id
+
+SEARCH_URL = f"https://{ALGOLIA_APP_ID.lower()}-dsn.algolia.net/1/indexes/{ALGOLIA_INDEX}/query"
 
 PRODUCT_ATTRIBUTES = [
     "STATUS",
@@ -25,6 +29,20 @@ PRODUCT_ATTRIBUTES = [
     "IMAGE_ID",
     "PRODUCT_TYPE",
 ]
+
+
+def _query(params: dict) -> dict:
+    resp = httpx.post(
+        SEARCH_URL,
+        headers={
+            "x-algolia-application-id": ALGOLIA_APP_ID,
+            "x-algolia-api-key": ALGOLIA_API_KEY,
+        },
+        json={"params": urlencode(params)},
+        timeout=15.0,
+    )
+    resp.raise_for_status()
+    return resp.json()
 
 
 def _build_filters(store_id: str) -> str:
@@ -48,27 +66,19 @@ def search_products(
     store_id: str | None = None,
 ) -> dict:
     store_id = store_id or get_store_id()
-    client = SearchClientSync(ALGOLIA_APP_ID, ALGOLIA_API_KEY)
-    try:
-        result = client.search_single_index(
-            index_name=ALGOLIA_INDEX,
-            search_params={
-                "query": query,
-                "hitsPerPage": hits_per_page,
-                "page": page,
-                "attributesToRetrieve": PRODUCT_ATTRIBUTES,
-                "filters": _build_filters(store_id),
-                "optionalFilters": [f"STOCK.{store_id}:1<score=50000>"],
-                "facets": [
-                    "BRAND",
-                    "PRIMARY_TAXONOMY.DEPT_NAME",
-                    "PRIMARY_TAXONOMY.AISLE_NAME",
-                ],
-            },
-        )
-        return result.to_dict()
-    finally:
-        client.close()
+    return _query(
+        {
+            "query": query,
+            "hitsPerPage": hits_per_page,
+            "page": page,
+            "attributesToRetrieve": json.dumps(PRODUCT_ATTRIBUTES),
+            "filters": _build_filters(store_id),
+            "optionalFilters": json.dumps([f"STOCK.{store_id}:1<score=50000>"]),
+            "facets": json.dumps(
+                ["BRAND", "PRIMARY_TAXONOMY.DEPT_NAME", "PRIMARY_TAXONOMY.AISLE_NAME"]
+            ),
+        }
+    )
 
 
 def lookup_products(
@@ -88,17 +98,11 @@ def lookup_products(
         f"AND (START_DATE<{now} OR CS_YES=1) "
         f"AND END_DATE>{now}"
     )
-    client = SearchClientSync(ALGOLIA_APP_ID, ALGOLIA_API_KEY)
-    try:
-        result = client.search_single_index(
-            index_name=ALGOLIA_INDEX,
-            search_params={
-                "query": "",
-                "hitsPerPage": len(product_ids),
-                "attributesToRetrieve": PRODUCT_ATTRIBUTES,
-                "filters": filters,
-            },
-        )
-        return result.to_dict()
-    finally:
-        client.close()
+    return _query(
+        {
+            "query": "",
+            "hitsPerPage": len(product_ids),
+            "attributesToRetrieve": json.dumps(PRODUCT_ATTRIBUTES),
+            "filters": filters,
+        }
+    )

@@ -1,6 +1,10 @@
 default:
     @just --list
 
+# Re-authenticate with ASDA (opens a browser to log in). Run this when the refresh token is rejected.
+login:
+    uv run asdabot auth login
+
 lint:
     uv run ruff check asdabot/
     uv run ruff format --check asdabot/

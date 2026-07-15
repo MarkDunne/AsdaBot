@@ -1,9 +1,9 @@
 """ASDA API clients for authenticated operations via SFCC proxy."""
 
+import time
 import uuid
 
 import httpx
-from tenacity import retry, retry_if_result, stop_after_attempt, wait_exponential
 
 from asdabot.auth import get_customer_id, get_slas_bearer_token
 from asdabot.config import SFCC_ORG, SFCC_PROXY_BASE, SITE_ID
@@ -169,16 +169,12 @@ def _patch_basket(body: dict) -> dict:
     basket_id = get_basket_id()
     url = _url(_basket_path(basket_id))
 
-    @retry(
-        retry=retry_if_result(lambda r: r.status_code == 400),
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-        reraise=True,
-    )
-    def _do_patch():
-        return httpx.patch(url, headers=_headers(), json=body, timeout=TIMEOUT)
-
-    resp = _do_patch()
+    resp = httpx.patch(url, headers=_headers(), json=body, timeout=TIMEOUT)
+    for attempt in range(4):
+        if resp.status_code != 400:
+            break
+        time.sleep(min(2**attempt, 10))
+        resp = httpx.patch(url, headers=_headers(), json=body, timeout=TIMEOUT)
     if resp.status_code == 200:
         return resp.json()
     try:
